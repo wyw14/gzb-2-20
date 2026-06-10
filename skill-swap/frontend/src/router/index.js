@@ -73,6 +73,12 @@ const routes = [
     name: 'Exchanges',
     component: () => import('../views/Exchanges.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/skill-aliases',
+    name: 'SkillAliases',
+    component: () => import('../views/SkillAliases.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

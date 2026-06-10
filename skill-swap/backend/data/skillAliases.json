@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1",
+    "standardName": "Vue",
+    "category": "programming",
+    "aliases": ["Vue", "vue.js", "Vue3", "Vue2", "Vue.js", "vuejs", "VUE", "vue3", "vue2"]
+  },
+  {
+    "id": "2",
+    "standardName": "React",
+    "category": "programming",
+    "aliases": ["React", "React.js", "reactjs", "ReactJS", "REACT", "react.js", "React Native", "react native"]
+  },
+  {
+    "id": "3",
+    "standardName": "Python",
+    "category": "programming",
+    "aliases": ["Python", "python", "Python3", "python3", "Python编程", "PYTHON", "py"]
+  },
+  {
+    "id": "4",
+    "standardName": "JavaScript",
+    "category": "programming",
+    "aliases": ["JavaScript", "javascript", "JS", "js", "Javascript", "JAVASCRIPT", "ECMAScript", "ES6"]
+  },
+  {
+    "id": "5",
+    "standardName": "Java",
+    "category": "programming",
+    "aliases": ["Java", "java", "JAVA", "Java开发"]
+  },
+  {
+    "id": "6",
+    "standardName": "TypeScript",
+    "category": "programming",
+    "aliases": ["TypeScript", "typescript", "TS", "ts", "Typescript"]
+  },
+  {
+    "id": "7",
+    "standardName": "Node.js",
+    "category": "programming",
+    "aliases": ["Node.js", "nodejs", "NodeJS", "Node", "node.js", "NODEJS"]
+  },
+  {
+    "id": "8",
+    "standardName": "英语",
+    "category": "language",
+    "aliases": ["英语", "English", "英文", "英语口语", "英语语法", "雅思", "托福", "商务英语"]
+  },
+  {
+    "id": "9",
+    "standardName": "日语",
+    "category": "language",
+    "aliases": ["日语", "Japanese", "日文", "日语口语", "JLPT", "N1", "N2"]
+  },
+  {
+    "id": "10",
+    "standardName": "吉他",
+    "category": "music",
+    "aliases": ["吉他", "Guitar", "guitar", "木吉他", "电吉他", "民谣吉他", "古典吉他"]
+  },
+  {
+    "id": "11",
+    "standardName": "钢琴",
+    "category": "music",
+    "aliases": ["钢琴", "Piano", "piano", "电子琴", "键盘"]
+  },
+  {
+    "id": "12",
+    "standardName": "Photoshop",
+    "category": "design",
+    "aliases": ["Photoshop", "PS", "ps", "PhotoShop", "修图", "Photoshop修图"]
+  },
+  {
+    "id": "13",
+    "standardName": "UI设计",
+    "category": "design",
+    "aliases": ["UI设计", "UI", "ui", "界面设计", "用户界面设计"]
+  },
+  {
+    "id": "14",
+    "standardName": "烹饪",
+    "category": "cooking",
+    "aliases": ["烹饪", "做饭", "做菜", "厨艺", "家常菜", "料理"]
+  },
+  {
+    "id": "15",
+    "standardName": "健身",
+    "category": "fitness",
+    "aliases": ["健身", "增肌", "减脂", "塑形", "力量训练", "健身训练"]
+  },
+  {
+    "id": "16",
+    "standardName": "瑜伽",
+    "category": "fitness",
+    "aliases": ["瑜伽", "Yoga", "yoga", "瑜伽冥想"]
+  },
+  {
+    "id": "17",
+    "standardName": "C++",
+    "category": "programming",
+    "aliases": ["C++", "c++", "CPP", "cpp", "C加加"]
+  },
+  {
+    "id": "18",
+    "standardName": "HTML/CSS",
+    "category": "programming",
+    "aliases": ["HTML", "html", "CSS", "css", "HTML/CSS", "前端基础", "网页设计"]
+  },
+  {
+    "id": "19",
+    "standardName": "Go",
+    "category": "programming",
+    "aliases": ["Go", "go", "Golang", "golang", "GO"]
+  },
+  {
+    "id": "20",
+    "standardName": "Rust",
+    "category": "programming",
+    "aliases": ["Rust", "rust", "RUST"]
+  }
+]

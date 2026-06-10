@@ -36,6 +36,10 @@
               <el-icon><SwitchButton /></el-icon>
               <span>交换记录</span>
             </router-link>
+            <router-link to="/skill-aliases" class="nav-link">
+              <el-icon><CollectionTag /></el-icon>
+              <span>别名管理</span>
+            </router-link>
           </div>
           <div class="nav-user">
             <el-dropdown @command="handleCommand">
@@ -75,7 +79,8 @@ import { useUserStore } from './stores/user'
 import { ElMessageBox } from 'element-plus'
 import {
   HomeFilled, Edit, Connection, ChatDotRound,
-  Share, Trophy, SwitchButton, User, ArrowDown
+  Share, Trophy, SwitchButton, User, ArrowDown,
+  CollectionTag
 } from '@element-plus/icons-vue'
 
 const router = useRouter()

@@ -35,7 +35,7 @@
           <span class="chat-username">{{ currentUser.username }}</span>
           <div class="header-actions">
             <el-button type="primary" size="small" @click="showExchangeDialog = true">
-              <el-icon><Handshake /></el-icon>发起交换
+              <el-icon><Connection /></el-icon>发起交换
             </el-button>
           </div>
         </div>
@@ -100,7 +100,7 @@ import { messageAPI, skillAPI, exchangeAPI, authAPI } from '../api'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { ChatDotRound, Promotion, Handshake } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, Connection } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

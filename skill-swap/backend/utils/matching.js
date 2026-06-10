@@ -1,11 +1,26 @@
+function normalizeString(str) {
+  return str.toLowerCase().replace(/[\s._\-]/g, '');
+}
+
+function getSkillMatchName(skill) {
+  if (skill.standardName) {
+    return normalizeString(skill.standardName);
+  }
+  return normalizeString(skill.name);
+}
+
+function skillNamesMatch(name1, name2) {
+  return name1 === name2 || name1.includes(name2) || name2.includes(name1);
+}
+
 function calculateMatchScore(user1Skills, user2Skills, user1Prefs, user2Prefs) {
   let score = 0;
   let maxScore = 0;
 
-  const user1Teach = user1Skills.filter(s => s.type === 'teach').map(s => s.name.toLowerCase());
-  const user1Learn = user1Skills.filter(s => s.type === 'learn').map(s => s.name.toLowerCase());
-  const user2Teach = user2Skills.filter(s => s.type === 'teach').map(s => s.name.toLowerCase());
-  const user2Learn = user2Skills.filter(s => s.type === 'learn').map(s => s.name.toLowerCase());
+  const user1Teach = user1Skills.filter(s => s.type === 'teach').map(s => getSkillMatchName(s));
+  const user1Learn = user1Skills.filter(s => s.type === 'learn').map(s => getSkillMatchName(s));
+  const user2Teach = user2Skills.filter(s => s.type === 'teach').map(s => getSkillMatchName(s));
+  const user2Learn = user2Skills.filter(s => s.type === 'learn').map(s => getSkillMatchName(s));
 
   maxScore += 40;
   const match1to2 = user1Teach.filter(t => user2Learn.some(l => l.includes(t) || t.includes(l))).length;
@@ -94,18 +109,24 @@ function getMatchedSkills(user1Skills, user2Skills) {
   const user2Learn = user2Skills.filter(s => s.type === 'learn');
 
   const iCanTeach = user1Teach.filter(t =>
-    user2Learn.some(l => l.name.toLowerCase().includes(t.name.toLowerCase()) ||
-                        t.name.toLowerCase().includes(l.name.toLowerCase()))
+    user2Learn.some(l => {
+      const tName = getSkillMatchName(t);
+      const lName = getSkillMatchName(l);
+      return skillNamesMatch(tName, lName);
+    })
   );
 
   const iCanLearn = user2Teach.filter(t =>
-    user1Learn.some(l => l.name.toLowerCase().includes(t.name.toLowerCase()) ||
-                        t.name.toLowerCase().includes(l.name.toLowerCase()))
+    user1Learn.some(l => {
+      const tName = getSkillMatchName(t);
+      const lName = getSkillMatchName(l);
+      return skillNamesMatch(tName, lName);
+    })
   );
 
   return {
-    iCanTeach: iCanTeach.map(s => s.name),
-    iCanLearn: iCanLearn.map(s => s.name)
+    iCanTeach: iCanTeach.map(s => s.standardName || s.name),
+    iCanLearn: iCanLearn.map(s => s.standardName || s.name)
   };
 }
 

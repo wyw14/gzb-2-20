@@ -31,7 +31,46 @@
 
       <el-form :model="form" :rules="rules" ref="formRef" class="publish-form">
         <el-form-item prop="name" label="技能名称">
-          <el-input v-model="form.name" placeholder="例如：Python编程、吉他演奏、英语口语" size="large" />
+          <el-input
+            v-model="form.name"
+            placeholder="例如：Python编程、吉他演奏、英语口语"
+            size="large"
+            @input="onSkillNameInput"
+          />
+          <div v-if="suggestions.length" class="suggestion-box">
+            <div class="suggestion-title">
+              <el-icon><Connection /></el-icon>
+              <span>发现相似的标准技能名，建议关联以获得更好的匹配：</span>
+            </div>
+            <div class="suggestion-list">
+              <div
+                v-for="sug in suggestions"
+                :key="sug.id"
+                class="suggestion-item"
+                :class="{ active: selectedSuggestionId === sug.id }"
+                @click="toggleSuggestion(sug)"
+              >
+                <div class="suggestion-main">
+                  <span class="std-name">{{ sug.standardName }}</span>
+                  <span class="match-score">匹配度 {{ sug.score }}%</span>
+                </div>
+                <div class="suggestion-aliases">
+                  <el-tag v-for="al in sug.aliases.slice(0, 5)" :key="al" size="small" type="info" effect="plain">
+                    {{ al }}
+                  </el-tag>
+                  <span v-if="sug.aliases.length > 5" class="more-aliases">等 {{ sug.aliases.length }} 个别名</span>
+                </div>
+                <el-icon v-if="selectedSuggestionId === sug.id" class="check-icon"><Check /></el-icon>
+              </div>
+            </div>
+            <div v-if="selectedSuggestionId" class="selected-hint">
+              <el-icon><InfoFilled /></el-icon>
+              <span>
+                已关联标准名 "<strong>{{ selectedStandardName }}</strong>"，
+                将参与统一聚合统计和匹配。你的原始写法 "{{ form.name }}" 仍会保留。
+              </span>
+            </div>
+          </div>
         </el-form-item>
 
         <el-form-item prop="category" label="技能类别">
@@ -105,6 +144,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useUserStore } from '../stores/user'
 import { skillAPI, authAPI } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Connection, Check, InfoFilled } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const formRef = ref()
@@ -113,11 +153,19 @@ const activeTab = ref('teach')
 const categories = ref([])
 const mySkills = ref([])
 const hasPreferences = ref(false)
+const suggestions = ref([])
+const selectedSuggestionId = ref(null)
+let debounceTimer = null
 
 const tabs = [
   { value: 'teach', label: '我可以教', icon: '🎓' },
   { value: 'learn', label: '我想要学', icon: '📖' }
 ]
+
+const selectedStandardName = computed(() => {
+  const s = suggestions.value.find(x => x.id === selectedSuggestionId.value)
+  return s ? s.standardName : ''
+})
 
 const form = ref({
   name: '',
@@ -126,7 +174,8 @@ const form = ref({
   level: '中级',
   description: '',
   onlinePreference: 'both',
-  availableTime: []
+  availableTime: [],
+  standardName: ''
 })
 
 const prefsForm = ref({
@@ -173,14 +222,56 @@ function getCategoryName(id) {
   return cat ? `${cat.icon} ${cat.name}` : id
 }
 
+async function onSkillNameInput(val) {
+  clearTimeout(debounceTimer)
+  selectedSuggestionId.value = null
+  form.value.standardName = ''
+  if (!val || val.trim().length < 1) {
+    suggestions.value = []
+    return
+  }
+  debounceTimer = setTimeout(async () => {
+    try {
+      const res = await skillAPI.suggestStandardNames(val.trim())
+      suggestions.value = res.data || []
+      if (suggestions.value.length > 0 && suggestions.value[0].score === 100) {
+        selectedSuggestionId.value = suggestions.value[0].id
+        form.value.standardName = suggestions.value[0].standardName
+        if (!form.value.category) {
+          form.value.category = suggestions.value[0].category
+        }
+      }
+    } catch (e) {
+      suggestions.value = []
+    }
+  }, 300)
+}
+
+function toggleSuggestion(sug) {
+  if (selectedSuggestionId.value === sug.id) {
+    selectedSuggestionId.value = null
+    form.value.standardName = ''
+  } else {
+    selectedSuggestionId.value = sug.id
+    form.value.standardName = sug.standardName
+    if (!form.value.category) {
+      form.value.category = sug.category
+    }
+  }
+}
+
 async function publish() {
   try {
     await formRef.value.validate()
     loading.value = true
-    await skillAPI.createSkill({
+    const payload = {
       ...form.value,
       type: activeTab.value
-    })
+    }
+    if (selectedStandardName.value) {
+      payload.standardName = selectedStandardName.value
+    }
+    await skillAPI.createSkill(payload)
     ElMessage.success('发布成功')
     form.value = {
       name: '',
@@ -189,8 +280,11 @@ async function publish() {
       level: '中级',
       description: '',
       onlinePreference: 'both',
-      availableTime: []
+      availableTime: [],
+      standardName: ''
     }
+    suggestions.value = []
+    selectedSuggestionId.value = null
     await loadMySkills()
   } catch (e) {
     ElMessage.error('发布失败')
@@ -324,5 +418,109 @@ async function savePreferences() {
 
 .prefs-form {
   max-width: 500px;
+}
+
+.suggestion-box {
+  margin-top: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f7ff 0%, #faf5ff 100%);
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+}
+
+.suggestion-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #5b6ab8;
+  font-weight: 500;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-item {
+  position: relative;
+  padding: 14px 40px 14px 14px;
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-item:hover {
+  border-color: #c7d2fe;
+  background: #fafbff;
+}
+
+.suggestion-item.active {
+  border-color: #667eea;
+  background: #f0f3ff;
+}
+
+.suggestion-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.std-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #333;
+}
+
+.match-score {
+  font-size: 12px;
+  color: #667eea;
+  background: #eef1ff;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.suggestion-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.more-aliases {
+  font-size: 12px;
+  color: #999;
+}
+
+.check-icon {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  color: #667eea;
+  font-size: 22px;
+}
+
+.selected-hint {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: #eef3ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #4c5aa8;
+}
+
+.selected-hint .el-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

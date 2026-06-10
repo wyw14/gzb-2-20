@@ -40,7 +40,12 @@ export const skillAPI = {
   createSkill: (data) => api.post('/skills', data),
   updateSkill: (id, data) => api.put(`/skills/${id}`, data),
   deleteSkill: (id) => api.delete(`/skills/${id}`),
-  getCategories: () => api.get('/skill-categories')
+  getCategories: () => api.get('/skill-categories'),
+  suggestStandardNames: (name) => api.get('/skill-aliases/suggest', { params: { name } }),
+  getAliases: (params) => api.get('/skill-aliases', { params }),
+  createAlias: (data) => api.post('/skill-aliases', data),
+  updateAlias: (id, data) => api.put(`/skill-aliases/${id}`, data),
+  deleteAlias: (id) => api.delete(`/skill-aliases/${id}`)
 }
 
 export const matchAPI = {

@@ -6,6 +6,59 @@ const { v4: uuidv4 } = require('uuid');
 const { readJson, writeJson } = require('./utils/storage');
 const { findMatchesForUser } = require('./utils/matching');
 
+function normalizeString(str) {
+  return str.toLowerCase().replace(/[\s._\-]/g, '');
+}
+
+function findStandardName(skillName) {
+  const aliases = readJson('skillAliases.json');
+  const normalized = normalizeString(skillName);
+  for (const item of aliases) {
+    const matchName = normalizeString(item.standardName);
+    if (matchName === normalized) return item.standardName;
+    for (const alias of item.aliases) {
+      if (normalizeString(alias) === normalized) return item.standardName;
+    }
+  }
+  return null;
+}
+
+function findSimilarStandardNames(skillName, limit = 5) {
+  const aliases = readJson('skillAliases.json');
+  const normalized = normalizeString(skillName);
+  if (!normalized) return [];
+  const results = [];
+  for (const item of aliases) {
+    const stdNormalized = normalizeString(item.standardName);
+    let score = 0;
+    if (stdNormalized === normalized) score = 100;
+    else if (stdNormalized.includes(normalized)) score = 80;
+    else if (normalized.includes(stdNormalized)) score = 70;
+    for (const alias of item.aliases) {
+      const aliasNorm = normalizeString(alias);
+      if (aliasNorm === normalized) score = Math.max(score, 100);
+      else if (aliasNorm.includes(normalized)) score = Math.max(score, 80);
+      else if (normalized.includes(aliasNorm)) score = Math.max(score, 70);
+    }
+    if (score > 0) {
+      results.push({
+        id: item.id,
+        standardName: item.standardName,
+        category: item.category,
+        aliases: item.aliases,
+        score
+      });
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function getAggregatedSkillName(skill) {
+  if (skill.standardName) return skill.standardName;
+  const found = findStandardName(skill.name);
+  return found || skill.name;
+}
+
 const app = express();
 const PORT = 4120;
 const JWT_SECRET = 'skill-swap-secret-key-2024';
@@ -142,7 +195,7 @@ app.get('/api/skills', authMiddleware, (req, res) => {
 });
 
 app.post('/api/skills', authMiddleware, (req, res) => {
-  const { name, category, type } = req.body;
+  const { name, category, type, standardName } = req.body;
 
   if (!name || !category || !type) {
     return res.status(400).json({ error: '请填写技能名称、类别和类型' });
@@ -152,10 +205,12 @@ app.post('/api/skills', authMiddleware, (req, res) => {
   }
 
   const skills = readJson('skills.json');
+  const resolvedStandardName = standardName || findStandardName(name);
   const newSkill = {
     id: uuidv4(),
     userId: req.user.id,
     ...req.body,
+    standardName: resolvedStandardName,
     createdAt: new Date().toISOString()
   };
   skills.push(newSkill);
@@ -417,10 +472,11 @@ app.get('/api/stats/popular-skills', (req, res) => {
   const skillCount = {};
 
   skills.forEach(s => {
-    if (!skillCount[s.name]) {
-      skillCount[s.name] = { teach: 0, learn: 0 };
+    const aggregatedName = getAggregatedSkillName(s);
+    if (!skillCount[aggregatedName]) {
+      skillCount[aggregatedName] = { teach: 0, learn: 0 };
     }
-    skillCount[s.name][s.type]++;
+    skillCount[aggregatedName][s.type]++;
   });
 
   const sorted = Object.entries(skillCount)
@@ -458,6 +514,85 @@ app.get('/api/stats/success-rate', (req, res) => {
 app.get('/api/skill-categories', (req, res) => {
   const categories = readJson('skillCategories.json');
   res.json(categories);
+});
+
+app.get('/api/skill-aliases/suggest', authMiddleware, (req, res) => {
+  const { name } = req.query;
+  if (!name) {
+    return res.json([]);
+  }
+  const suggestions = findSimilarStandardNames(name, 5);
+  res.json(suggestions);
+});
+
+app.get('/api/skill-aliases', authMiddleware, (req, res) => {
+  const aliases = readJson('skillAliases.json');
+  const { keyword, category } = req.query;
+  let filtered = aliases;
+  if (keyword) {
+    const kw = keyword.toLowerCase();
+    filtered = filtered.filter(a =>
+      a.standardName.toLowerCase().includes(kw) ||
+      a.aliases.some(al => al.toLowerCase().includes(kw))
+    );
+  }
+  if (category) {
+    filtered = filtered.filter(a => a.category === category);
+  }
+  res.json(filtered);
+});
+
+app.post('/api/skill-aliases', authMiddleware, (req, res) => {
+  const { standardName, category, aliases } = req.body;
+  if (!standardName || !category || !Array.isArray(aliases)) {
+    return res.status(400).json({ error: '请填写标准名、类别和别名列表' });
+  }
+  const allAliases = readJson('skillAliases.json');
+  if (allAliases.find(a => a.standardName === standardName)) {
+    return res.status(400).json({ error: '该标准名已存在' });
+  }
+  const newItem = {
+    id: uuidv4(),
+    standardName,
+    category,
+    aliases,
+    createdAt: new Date().toISOString()
+  };
+  allAliases.push(newItem);
+  writeJson('skillAliases.json', allAliases);
+  res.json(newItem);
+});
+
+app.put('/api/skill-aliases/:id', authMiddleware, (req, res) => {
+  const { standardName, category, aliases } = req.body;
+  const allAliases = readJson('skillAliases.json');
+  const index = allAliases.findIndex(a => a.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '别名项不存在' });
+  }
+  const duplicate = allAliases.find(a => a.standardName === standardName && a.id !== req.params.id);
+  if (duplicate) {
+    return res.status(400).json({ error: '该标准名已被其他条目使用' });
+  }
+  allAliases[index] = {
+    ...allAliases[index],
+    standardName: standardName || allAliases[index].standardName,
+    category: category || allAliases[index].category,
+    aliases: Array.isArray(aliases) ? aliases : allAliases[index].aliases,
+    updatedAt: new Date().toISOString()
+  };
+  writeJson('skillAliases.json', allAliases);
+  res.json(allAliases[index]);
+});
+
+app.delete('/api/skill-aliases/:id', authMiddleware, (req, res) => {
+  const allAliases = readJson('skillAliases.json');
+  const filtered = allAliases.filter(a => a.id !== req.params.id);
+  if (filtered.length === allAliases.length) {
+    return res.status(404).json({ error: '别名项不存在' });
+  }
+  writeJson('skillAliases.json', filtered);
+  res.json({ success: true });
 });
 
 app.get('/api/users/:userId', (req, res) => {
@@ -506,8 +641,15 @@ app.get('/api/users', authMiddleware, (req, res) => {
   }
   if (skill) {
     const skills = readJson('skills.json');
+    const searchNormalized = normalizeString(skill);
     const userIdsWithSkill = skills
-      .filter(s => s.name.includes(skill))
+      .filter(s => {
+        const aggName = getAggregatedSkillName(s);
+        return normalizeString(s.name).includes(searchNormalized) ||
+               normalizeString(aggName).includes(searchNormalized) ||
+               s.name.includes(skill) ||
+               aggName.includes(skill);
+      })
       .map(s => s.userId);
     filtered = filtered.filter(u => userIdsWithSkill.includes(u.id));
   }
