@@ -10,14 +10,23 @@ function resolveSkillStandardName(skill) {
     const exists = aliases.find(a => a.standardName === skill.standardName);
     if (exists) return skill.standardName;
   }
+
   const aliases = readJson('skillAliases.json');
   const nameNorm = normalizeString(skill.name);
-  for (const item of aliases) {
-    if (normalizeString(item.standardName) === nameNorm) return item.standardName;
-    for (const alias of item.aliases) {
-      if (normalizeString(alias) === nameNorm) return item.standardName;
+  const resolved = (() => {
+    for (const item of aliases) {
+      if (normalizeString(item.standardName) === nameNorm) return item.standardName;
+      for (const alias of item.aliases) {
+        if (normalizeString(alias) === nameNorm) return item.standardName;
+      }
     }
-  }
+    return null;
+  })();
+
+  if (resolved) return resolved;
+
+  if (skill.standardName) return skill.standardName;
+
   return null;
 }
 

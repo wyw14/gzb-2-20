@@ -105,14 +105,24 @@ function getAggregatedSkillName(skill) {
 
 function syncSkillsStandardName() {
   const skills = readJson('skills.json');
+  const aliases = readJson('skillAliases.json');
+  const validStandardNames = new Set(aliases.map(a => a.standardName));
   let changed = false;
+
   for (let i = 0; i < skills.length; i++) {
+    const currentStd = skills[i].standardName;
+
+    if (currentStd && validStandardNames.has(currentStd)) {
+      continue;
+    }
+
     const resolved = findStandardName(skills[i].name);
     if (skills[i].standardName !== resolved) {
       skills[i].standardName = resolved;
       changed = true;
     }
   }
+
   if (changed) {
     writeJson('skills.json', skills);
   }
