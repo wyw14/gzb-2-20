@@ -10,6 +10,50 @@ function normalizeString(str) {
   return str.toLowerCase().replace(/[\s._\-]/g, '');
 }
 
+function findConflicts(standardName, aliases, excludeId) {
+  const allAliases = readJson('skillAliases.json');
+  const newStdNorm = normalizeString(standardName);
+  const newAliasNorms = aliases.map(a => normalizeString(a));
+  const conflicts = [];
+
+  for (const item of allAliases) {
+    if (excludeId && item.id === excludeId) continue;
+    const existingStdNorm = normalizeString(item.standardName);
+    if (existingStdNorm === newStdNorm) {
+      conflicts.push({ type: 'standardName', value: item.standardName, against: item.id });
+    }
+    for (const existingAlias of item.aliases) {
+      const existingAliasNorm = normalizeString(existingAlias);
+      if (existingAliasNorm === newStdNorm) {
+        conflicts.push({ type: 'standardName_vs_alias', value: item.standardName, alias: existingAlias, against: item.id });
+      }
+      for (const newNorm of newAliasNorms) {
+        if (newNorm === existingStdNorm) {
+          conflicts.push({ type: 'alias_vs_standardName', value: newNorm, against: item.id });
+        }
+        if (newNorm === existingAliasNorm) {
+          conflicts.push({ type: 'alias_vs_alias', value: newNorm, existingAlias, against: item.id });
+        }
+      }
+    }
+  }
+
+  const seenAliasNorms = {};
+  for (let i = 0; i < newAliasNorms.length; i++) {
+    if (seenAliasNorms[newAliasNorms[i]] !== undefined) {
+      conflicts.push({ type: 'duplicate_within_aliases', value: aliases[i], duplicateOf: aliases[seenAliasNorms[newAliasNorms[i]]] });
+    } else {
+      seenAliasNorms[newAliasNorms[i]] = i;
+    }
+  }
+
+  if (newAliasNorms.includes(newStdNorm)) {
+    conflicts.push({ type: 'alias_same_as_standardName', value: standardName });
+  }
+
+  return conflicts;
+}
+
 function findStandardName(skillName) {
   const aliases = readJson('skillAliases.json');
   const normalized = normalizeString(skillName);
@@ -57,6 +101,21 @@ function getAggregatedSkillName(skill) {
   if (skill.standardName) return skill.standardName;
   const found = findStandardName(skill.name);
   return found || skill.name;
+}
+
+function syncSkillsStandardName() {
+  const skills = readJson('skills.json');
+  let changed = false;
+  for (let i = 0; i < skills.length; i++) {
+    const resolved = findStandardName(skills[i].name);
+    if (skills[i].standardName !== resolved) {
+      skills[i].standardName = resolved;
+      changed = true;
+    }
+  }
+  if (changed) {
+    writeJson('skills.json', skills);
+  }
 }
 
 const app = express();
@@ -547,10 +606,25 @@ app.post('/api/skill-aliases', authMiddleware, (req, res) => {
   if (!standardName || !category || !Array.isArray(aliases)) {
     return res.status(400).json({ error: '请填写标准名、类别和别名列表' });
   }
-  const allAliases = readJson('skillAliases.json');
-  if (allAliases.find(a => a.standardName === standardName)) {
-    return res.status(400).json({ error: '该标准名已存在' });
+  if (aliases.length === 0) {
+    return res.status(400).json({ error: '别名列表不能为空，至少需要一个别名' });
   }
+
+  const conflicts = findConflicts(standardName, aliases, null);
+  if (conflicts.length > 0) {
+    const firstConflict = conflicts[0];
+    const conflictMessages = {
+      standardName: `标准名 "${standardName}" 已存在`,
+      standardName_vs_alias: `标准名 "${standardName}" 与已有别名 "${firstConflict.alias}" 冲突`,
+      alias_vs_standardName: `别名与已有标准名冲突`,
+      alias_vs_alias: `别名与已有别名 "${firstConflict.existingAlias}" 冲突`,
+      duplicate_within_aliases: `别名列表内 "${firstConflict.value}" 与 "${firstConflict.duplicateOf}" 重复`,
+      alias_same_as_standardName: `别名列表中包含了与标准名 "${standardName}" 相同的项`
+    };
+    return res.status(400).json({ error: conflictMessages[firstConflict.type] || '存在重复冲突' });
+  }
+
+  const allAliases = readJson('skillAliases.json');
   const newItem = {
     id: uuidv4(),
     standardName,
@@ -560,6 +634,9 @@ app.post('/api/skill-aliases', authMiddleware, (req, res) => {
   };
   allAliases.push(newItem);
   writeJson('skillAliases.json', allAliases);
+
+  syncSkillsStandardName();
+
   res.json(newItem);
 });
 
@@ -570,18 +647,40 @@ app.put('/api/skill-aliases/:id', authMiddleware, (req, res) => {
   if (index === -1) {
     return res.status(404).json({ error: '别名项不存在' });
   }
-  const duplicate = allAliases.find(a => a.standardName === standardName && a.id !== req.params.id);
-  if (duplicate) {
-    return res.status(400).json({ error: '该标准名已被其他条目使用' });
+
+  const finalStandardName = standardName || allAliases[index].standardName;
+  const finalCategory = category || allAliases[index].category;
+  const finalAliases = Array.isArray(aliases) ? aliases : allAliases[index].aliases;
+
+  if (finalAliases.length === 0) {
+    return res.status(400).json({ error: '别名列表不能为空，至少需要一个别名' });
   }
+
+  const conflicts = findConflicts(finalStandardName, finalAliases, req.params.id);
+  if (conflicts.length > 0) {
+    const firstConflict = conflicts[0];
+    const conflictMessages = {
+      standardName: `标准名 "${finalStandardName}" 已存在`,
+      standardName_vs_alias: `标准名 "${finalStandardName}" 与已有别名 "${firstConflict.alias}" 冲突`,
+      alias_vs_standardName: `别名与已有标准名冲突`,
+      alias_vs_alias: `别名与已有别名 "${firstConflict.existingAlias}" 冲突`,
+      duplicate_within_aliases: `别名列表内 "${firstConflict.value}" 与 "${firstConflict.duplicateOf}" 重复`,
+      alias_same_as_standardName: `别名列表中包含了与标准名 "${finalStandardName}" 相同的项`
+    };
+    return res.status(400).json({ error: conflictMessages[firstConflict.type] || '存在重复冲突' });
+  }
+
   allAliases[index] = {
     ...allAliases[index],
-    standardName: standardName || allAliases[index].standardName,
-    category: category || allAliases[index].category,
-    aliases: Array.isArray(aliases) ? aliases : allAliases[index].aliases,
+    standardName: finalStandardName,
+    category: finalCategory,
+    aliases: finalAliases,
     updatedAt: new Date().toISOString()
   };
   writeJson('skillAliases.json', allAliases);
+
+  syncSkillsStandardName();
+
   res.json(allAliases[index]);
 });
 
@@ -592,6 +691,9 @@ app.delete('/api/skill-aliases/:id', authMiddleware, (req, res) => {
     return res.status(404).json({ error: '别名项不存在' });
   }
   writeJson('skillAliases.json', filtered);
+
+  syncSkillsStandardName();
+
   res.json({ success: true });
 });
 

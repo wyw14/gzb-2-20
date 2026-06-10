@@ -1,11 +1,29 @@
+const { readJson } = require('../utils/storage');
+
 function normalizeString(str) {
   return str.toLowerCase().replace(/[\s._\-]/g, '');
 }
 
-function getSkillMatchName(skill) {
+function resolveSkillStandardName(skill) {
   if (skill.standardName) {
-    return normalizeString(skill.standardName);
+    const aliases = readJson('skillAliases.json');
+    const exists = aliases.find(a => a.standardName === skill.standardName);
+    if (exists) return skill.standardName;
   }
+  const aliases = readJson('skillAliases.json');
+  const nameNorm = normalizeString(skill.name);
+  for (const item of aliases) {
+    if (normalizeString(item.standardName) === nameNorm) return item.standardName;
+    for (const alias of item.aliases) {
+      if (normalizeString(alias) === nameNorm) return item.standardName;
+    }
+  }
+  return null;
+}
+
+function getSkillMatchName(skill) {
+  const resolved = resolveSkillStandardName(skill);
+  if (resolved) return normalizeString(resolved);
   return normalizeString(skill.name);
 }
 
@@ -125,8 +143,8 @@ function getMatchedSkills(user1Skills, user2Skills) {
   );
 
   return {
-    iCanTeach: iCanTeach.map(s => s.standardName || s.name),
-    iCanLearn: iCanLearn.map(s => s.standardName || s.name)
+    iCanTeach: iCanTeach.map(s => resolveSkillStandardName(s) || s.name),
+    iCanLearn: iCanLearn.map(s => resolveSkillStandardName(s) || s.name)
   };
 }
 
